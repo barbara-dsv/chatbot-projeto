@@ -1,6 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const { Client, Events, GatewayIntentBits, Collection, MessageFlags } = require('discord.js');
+const { Client,  GatewayIntentBits, Collection } = require('discord.js');
 const { token } = require('./config.json');
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -27,35 +27,18 @@ for(const folder of commandFolders){
     }
 }
 
-client.once(Events.ClientReady, readyClient => {
-	console.log(`Ready! Logged in as ${readyClient.user.tag}`);
-});
+//fs.readdirSync().filter()retorna uma matriz de todos os nomes de arquivos no diretório fornecido e filtra apenas por .js
+const eventsPath = path.join(__dirname, 'events');
+const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
 
-// Listener para interações de comandos de chat
-client.on(Events.InteractionCreate, async interaction => {
-    // Verifica se a interação é um comando de chat
-    if (!interaction.isChatInputCommand()) return;
-    //recupera o comando correspondente ao nome do comando executado da coleção de comandos 
-    const command = interaction.client.commands.get(interaction.commandName)
-    //Verifica se o comando foi encontrado na coleção.
-    if (!command){
-        console.error(`No command matching ${interaction.commandName} was found.`)
-        return;
-    }
-    // Executa o comando e trata erros com try-catch
-    try{
-        await command.execute(interaction)
-    } catch (error){
-        console.log(error)
-        //verifica se a interação foi respondido ou se uma resposta está pendente 
-        if(interaction.replied || interaction.deferred){
-            await interaction.followUp({ content: 'There was an error while executing this command!', flags: MessageFlags.Ephemeral})
-        } else {
-            await interaction.reply({ content: 'There was an error while executing this command!', flags: MessageFlags.Ephemeral });
-        }
-    }
-	console.log(interaction);
-});
-
+for (const file of eventFiles) {
+	const filePath = path.join(eventsPath, file);
+	const event = require(filePath);
+	if (event.once) {
+		client.once(event.name, (...args) => event.execute(...args));
+	} else {
+		client.on(event.name, (...args) => event.execute(...args));
+	}
+}
 
 client.login(token);
